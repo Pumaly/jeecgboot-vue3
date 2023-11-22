@@ -1,4 +1,5 @@
 <script lang="tsx">
+  import { NamePath, ValidateOptions } from 'ant-design-vue/lib/form/interface';
   import type { PropType, Ref } from 'vue';
   import type { FormActionType, FormProps } from '../types/form';
   import type { FormSchema } from '../types/form';
@@ -40,6 +41,10 @@
         type: Function as PropType<(key: string, value: any) => void>,
         default: null,
       },
+      validateFields: {
+        type: Function as PropType<(nameList?: NamePath[] | undefined, options?: ValidateOptions) => Promise<any>>,
+        default: null,
+      },
       tableAction: {
         type: Object as PropType<TableActionType>,
       },
@@ -79,10 +84,9 @@
           componentProps = componentProps({ schema, tableAction, formModel, formActionType }) ?? {};
         }
         if (schema.component === 'Divider') {
-          componentProps = Object.assign({ type: 'horizontal' }, componentProps, {
-            orientation: 'left',
-            plain: true,
-          });
+          //update-begin---author:wangshuai---date:2023-09-22---for:【QQYUN-6603】分割线标题位置显示不正确---
+          componentProps = Object.assign({ type: 'horizontal',orientation:'left', plain: true, }, componentProps);
+          //update-end---author:wangshuai---date:2023-09-22---for:【QQYUN-6603】分割线标题位置显示不正确---
         }
         return componentProps as Recordable;
       });
@@ -202,12 +206,17 @@
       }
 
       function renderComponent() {
-        const { renderComponentContent, component, field, changeEvent = 'change', valueField } = props.schema;
+        const { renderComponentContent, component, field, changeEvent = 'change', valueField, componentProps } = props.schema;
 
         const isCheck = component && ['Switch', 'Checkbox'].includes(component);
-
+        // update-begin--author:liaozhiyang---date:20231013---for：【QQYUN-6679】input去空格
+        let isTrim = false;
+        if (component === 'Input' && componentProps && componentProps.trim) {
+          isTrim = true;
+        }
+        // update-end--author:liaozhiyang---date:20231013---for：【QQYUN-6679】input去空格
         const eventKey = `on${upperFirst(changeEvent)}`;
-
+        // update-begin--author:liaozhiyang---date:20230922---for：【issues/752】表单校验dynamicRules 无法 使用失去焦点后校验 trigger: 'blur'
         const on = {
           [eventKey]: (...args: Nullable<Recordable>[]) => {
             const [e] = args;
@@ -215,10 +224,26 @@
               propsData[eventKey](...args);
             }
             const target = e ? e.target : null;
-            const value = target ? (isCheck ? target.checked : target.value) : e;
+            // update-begin--author:liaozhiyang---date:20231013---for：【QQYUN-6679】input去空格
+            let value;
+            if (target) {
+              if (isCheck) {
+                value = target.checked;
+              } else {
+                value = isTrim ? target.value.trim() : target.value;
+              }
+            } else {
+              value = e;
+            }
+            // update-end--author:liaozhiyang---date:20231013---for：【QQYUN-6679】input去空格
             props.setFormModel(field, value);
+            //props.validateFields([field], { triggerName: 'change' }).catch((_) => {});
           },
+          // onBlur: () => {
+          //   props.validateFields([field], { triggerName: 'blur' }).catch((_) => {});
+          // },
         };
+        // update-end--author:liaozhiyang---date:20230922---for：【issues/752】表单校验dynamicRules 无法 使用失去焦点后校验 trigger: 'blur'
         const Comp = componentMap.get(component) as ReturnType<typeof defineComponent>;
 
         const { autoSetPlaceHolder, size } = props.formProps;
